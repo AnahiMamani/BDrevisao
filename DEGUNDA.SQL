@@ -1,0 +1,164 @@
+CREATE TABLE LOCAL_01
+(
+    A01_CODIGO NUMBER(5) PRIMARY KEY,
+    A01_DESCRICAO VARCHAR2(30)
+)
+
+CREATE TABLE DEPARTAMENTO_02
+(
+    A02_CODIGO NUMBER(5) PRIMARY KEY,
+    A02_DESCRICAO VARCHAR2(40),
+    A01_CODIGO NUMBER(5),
+    FOREIGN KEY (A01_CODIGO) REFERENCES LOCAL_01(A01_CODIGO)
+)
+
+CREATE TABLE FUNCIONARIO_03
+(
+    A03_CODIGO NUMBER(5) PRIMARY KEY,
+    A03_NOME VARCHAR2(40),
+    A03_END VARCHAR2(40),
+    A03_TEL VARCHAR2(16),
+    A03_SALARY NUMBER(10,2),
+    A03_CHEFE NUMBER(5),
+    A02_CODIGO NUMBER(5),
+    FOREIGN KEY(A03_CHEFE) REFERENCES FUNCIONARIO_03(A03_CODIGO),
+    FOREIGN KEY(A02_CODIGO) REFERENCES DEPARTAMENTO_02(A02_CODIGO)
+)
+
+Questão 6: (1,0 ponto)
+Faça uma procedure capaz de inserir um registro na tabela Departamento_02. O código do departamento deve ser gerado automaticamente pela procedure.
+
+CREATE OR REPLACE PROCEDURE PROC_INS_DEPARTAMENTO_02
+(
+    V_A02_DESCRICAO IN DEPARTAMENTO_02.A02_DESCRICAO%TYPE,
+    V_A01_CODIGO IN DEPARTAMENTO_02.A01_CODIGO%TYPE
+)
+    IS
+    V_A02_CODIGO DEPARTAMENTO_02.A02_CODIGO%TYPE
+    BEGIN
+        SELECT MAX(A02_CODIGO)
+        INTO V_A02_CODIGO
+        FROM DEPARTAMENTO_02;
+
+        IF V_A02_CODIGO IS NULL THEN
+                V_A02_CODIGO := 1;
+        ELSE
+                V_A02_CODIGO := V_A02_CODIGO + 1;
+        END IF;
+
+        INSERT INTO DEPARTAMENTO_02(A02_CODIGO,A02_DESCRICAO, A01_CODIGO)
+        VALUES (V_A02_CODIGO, V_A02_DESCRICAO, V_A01_CODIGO);
+
+        COMMIT;
+    END;
+
+Questão 7: (1,0 ponto)
+Faça uma procedure capaz de atualizar o salário de todos os funcionários de um determinado departamento. Entrada nome do departamento e porcentagem de aumento.
+
+CREATE OR REPLACE PROCEDURE PROC_ATUALIZA_SALARIO (
+    P_NOME_DEPARTAMENTO IN DEPARTAMENTO_02.A02_DESCRICAO%TYPE,
+    P_PERCENTUAL_AUMENTO IN NUMBER
+)
+IS
+BEGIN
+    -- Atualizar o salário de todos os funcionários do departamento fornecido
+    UPDATE FUNCIONARIO_03 F
+    SET F.A03_SALARY = F.A03_SALARY + (F.A03_SALARY * P_PERCENTUAL_AUMENTO / 100)
+    WHERE F.A02_CODIGO = (
+        SELECT D.A02_CODIGO
+        FROM DEPARTAMENTO_02 D
+        WHERE D.A02_DESCRICAO = P_NOME_DEPARTAMENTO
+    );
+    
+    -- Confirmar as mudanças
+    COMMIT;
+END;
+
+Questão 8: (4,0 pontos)
+Implemente uma solução utilizando procedures que permita o cálculo do salário de um funcionário.
+Procedure 1: Calcula o TXNJ do funcionário que corresponde a 10% do salário bruto (1,0 ponto)
+
+CREATE OR REPLACE PROCEDURE PROC_TXNJ_CALCULAR(
+    V_A03_CODIGO IN FUNCIONARIO_03.A03_CODIGO,
+    V_TXNJ OUT NUMBER
+)
+IS
+    V_A03_SALARIO FUNCIONARIO_03.A03_SALARY
+BEGIN
+    SELECT A03_SALARY INTO V_A03_SALARIO
+    FROM FUNCIONARIO_03
+    WHERE A03_CODIGO =V_A03_CODIGO;
+
+    V_TXNJ := V_A03_SALARIO *0.10;
+END;
+
+Procedure 2: Calcula o BonusLinux do funcionário que corresponde a: (2,0 pontos)
+
+CREATE OR REPLACE PROCEDURE PROC_CALCULA_BONUSLINUX (
+    V_A03_CODIGO IN FUNCIONARIO_03.A03_CODIGO%TYPE,
+    v_BONUSLINUX OUT NUMBER
+)
+IS
+    V_SALARIO_BRUTO FUNCIONARIO_03.A03_SALARY%TYPE;
+BEGIN
+    -- Recupera o salário bruto do funcionário
+    SELECT A03_SALARY INTO V_SALARIO_BRUTO
+    FROM FUNCIONARIO_03
+    WHERE A03_CODIGO = V_A03_CODIGO;
+
+    -- Calcula o BonusLinux conforme as regras fornecidas
+    IF V_SALARIO_BRUTO < 5000 THEN
+        V_BONUSLINUX := V_SALARIO_BRUTO * 0.20;
+    ELSIF V_SALARIO_BRUTO >= 5000 AND V_SALARIO_BRUTO < 7000 THEN
+        V_BONUSLINUX := V_SALARIO_BRUTO * 0.26;
+    ELSIF V_SALARIO_BRUTO >= 7000 AND V_SALARIO_BRUTO < 10000 THEN
+        V_BONUSLINUX := V_SALARIO_BRUTO * 0.34;
+    ELSE
+        V_BONUSLINUX := V_SALARIO_BRUTO * 0.40;
+    END IF;
+END;
+
+Procedure 3: Calcula o Salário Final do funcionário (1,0 ponto)
+SalarioFinal = SalarioBruto - TXNJ + BonusLinux
+
+CREATE OR REPLACE PROCEDURE PROC_CALCULA_SALARIO_FINAL (
+    P_EMPLOYEE_ID IN FUNCIONARIO_03.A03_CODIGO%TYPE,
+    P_SALARIO_FINAL OUT NUMBER
+)
+IS
+    V_SALARIO_BRUTO FUNCIONARIO_03.A03_SALARY%TYPE;
+    V_TXNJ NUMBER;
+    V_BONUSLINUX NUMBER;
+BEGIN
+    -- Recupera o salário bruto do funcionário
+    SELECT A03_SALARY INTO V_SALARIO_BRUTO
+    FROM FUNCIONARIO_03
+    WHERE A03_CODIGO = P_EMPLOYEE_ID;
+
+    -- Chama a procedure para calcular o TXNJ
+    PROC_TXNJ_CALCULAR(P_EMPLOYEE_ID, V_TXNJ);
+
+    -- Chama a procedure para calcular o BonusLinux
+    PROC_CALCULA_BONUSLINUX(P_EMPLOYEE_ID, V_BONUSLINUX);
+
+    -- Calcula o Salário Final: SalarioFinal = SalarioBruto - TXNJ + BonusLinux
+    P_SALARIO_FINAL := V_SALARIO_BRUTO - V_TXNJ + V_BONUSLINUX;
+END;
+
+Questão 9: (1,0 ponto)
+Faça um bloco anônimo para testar a questão 8.
+
+DECLARE
+    V_TXNJ NUMBER;
+    V_BONUSLINUX NUMBER;
+    P_SALARIO_FINAL NUMBER;
+BEGIN
+    PROC_CALCULA_TXNJ(123,V_TXNJ);
+    DBMS_OUTPUT.PUT_LINE('TXNJ: '|| V_TXNJ);
+
+    PROC_CALCULA_BONUSLINUX(123,v_BONUSLINUX)
+    DBMS_OUTPUT.PUT_LINE('BONUS: '|| V_BONUSLINUX);
+
+    PROC_CALCULA_SALARIO_FINAL(123, P_SALARIO_FINAL)
+    DBMS_OUTPUT.PUT_LINE('SALARIO FINAL: '|| P_SALARIO_FINAL)
+END;
